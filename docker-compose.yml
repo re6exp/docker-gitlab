@@ -1,0 +1,80 @@
+version: '2'
+services:
+  gitlab_www:
+    restart: always
+    image: nginx:latest
+    container_name: gitlab_www
+    volumes:
+     - /export/containers/nginx-conf/nginx.conf:/etc/nginx/nginx.conf:ro
+     - /export/containers/nginx-conf/gitlab-http.conf:/etc/nginx/conf.d/gitlab-http.conf:ro
+     - /export/containers/gitlab-logs:/var/log/gitlab
+    network_mode: "bridge"
+    ports:
+     - "8080:80"
+    depends_on:
+      - gitlab_app
+    links:
+      - gitlab_app
+  gitlab_app:
+    restart: always
+    image: 'gitlab/gitlab-ce:latest'
+    hostname: 'gitlab'
+    container_name: gitlab_app
+    expose:
+    - "8081"
+    volumes:
+     - /export/containers/gitlab-config:/etc/gitlab
+     - /export/containers/gitlab-data:/var/opt/gitlab
+     - /export/containers/gitlab-logs:/var/log/gitlab
+    network_mode: "bridge"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab'
+	gitlab_rails['gitlab_ssh_host'] = 'ssh-gitlab'
+	gitlab_rails['time_zone'] = 'Europe/Samara'
+	gitlab_rails['db_adapter'] = "postgresql"
+	gitlab_rails['db_database'] = "gitlabhq_production"
+	gitlab_rails['db_username'] = "gitlabhq_production"
+	gitlab_rails['db_password'] = "T0pS3cr3T"
+	gitlab_rails['db_host'] = "gitlab_postgresql"
+	gitlab_rails['db_port'] = 5432
+	gitlab_rails['redis_host'] = "gitlab_redis"
+	gitlab_rails['redis_port'] = 6379
+	gitlab_rails['redis_database'] = 0
+	gitlab_workhorse['enable'] = true
+	gitlab_workhorse['listen_network'] = "tcp"
+	gitlab_workhorse['listen_addr'] = "0.0.0.0:8081"
+	gitlab_workhorse['auth_backend'] = "http://localhost:8080"
+	unicorn['listen'] = '127.0.0.1'
+	unicorn['port'] = 8080
+	postgresql['enable'] = false
+	redis['enable'] = false
+	nginx['enable'] = false
+    ports:
+     - "8022:22"
+    depends_on:
+      - postgresql
+      - redis
+    links:
+      - postgresql
+      - redis
+  postgresql:
+    restart: always
+    image: postgres:latest
+    container_name: gitlab_postgresql
+    environment:
+     - POSTGRES_PASSWORD=T0pS3cr3T
+    expose:
+    - "5432"
+    volumes:
+     - /export/containers/postgresql-data:/var/lib/postgresql/data
+    network_mode: "bridge"
+  redis:
+    restart: always
+    image: redis:latest
+    container_name: gitlab_redis
+    expose:
+    - "6379"
+    volumes:
+     - /export/containers/redis-data:/data
+    network_mode: "bridge"
